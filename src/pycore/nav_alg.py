@@ -1,8 +1,9 @@
 import numpy as np
-from numpy import cos as cos, ndarray, roll
+from numpy import cos as cos, ndarray
 from numpy import sin as sin
 from numpy import tan as tan
 import math as math
+from src.pycore.structs import *
 import logging
 logger = logging.getLogger(__name__)
 class nav_alg:
@@ -14,62 +15,29 @@ class nav_alg:
 
     def __init__(self):
 
-        # default varaiables
         self._H = 0.0 # object height above ground
-        self._w_body = np.array([0, 0, 0], dtype=np.double).reshape(3,1) # angle speed body
-        self._a_body = np.array([0, 0, 0], dtype=np.double).reshape(3,1) # acceleration body
-        self._v_enu  = np.array([0, 0, 0], dtype=np.double).reshape(3,1)         # linear speed enup
-        self._coord   = np.array([0,0], dtype=np.double).reshape(2,1)     # lat, lon (phi, lambda)
-        self._tm_body_enu    = np.eye(3, dtype=np.double)                        # transformation matrix body - enup
-        self.sensor_data = {}
+        self._w_body = vec_body() # angle speed body
+        self._a_body = vec_body() # acceleration body
+        self._v_enu  = vec_enu() # linear speed enup
+        self._coord   = vec_coordinates() # lat, lon (phi, lambda)
+        self._tm_body_enu = np.eye(3, dtype=np.double) # transformation matrix body - enup
+        self._w_enu = vec_enu(
+            0,
+            self.U*math.cos(self._coord.phi),
+            self.U*math.sin(self._coord.phi)
+        ) # angle speed enup
+        self._a_enu = vec_enu(0,0,self.G) # acceleration enup
+        self._rph_angles  = vec_orientation() # euler angles
 
-        # local variables
-        self._w_enu          = np.array([0,0,0], dtype=np.double).reshape(3,1)         # angle speed enup
-        self._a_enu          = np.array([0,0,0], dtype=np.double).reshape(3,1)         # acceleration enup
-        self._rph_angles  = np.array([0,0,0], dtype=np.double).reshape(3,1)         # euler angles
-        self.a_after_alignment_body = 0.0
-        self.w_after_alignment_body = 0.0
-        self.is_aligned = False
-        self.is_coordinates_set = False
-        self._w_body_input = np.array([0, 0, 0], dtype=np.double).reshape(3,1) # user input
-        self._a_body_input = np.array([0, 0, 0], dtype=np.double).reshape(3,1) # user input
-        self.starting_point = 0
-        self.alignment_time=0
-        self.a_pre = 0
-
-
-        a_enu = np.array([[0],[0],[self.G]])
-        w_enu = np.array([
-            [0],
-            [self.U*math.cos(self._coord[0])],
-            [self.U*math.sin(self._coord[0])]
-        ]
-        )
-
-    def set_a_body(self, ax, ay, az):
-        self._a_body_input=np.array([ax, ay, az]).reshape(3,1)
-        if logger.isEnabledFor(logging.INFO):
-            logger.info(f'Object: {self.__name__}\nA_body setup:\n {self._a_body_input}')
-
-    def set_w_body(self, wx, wy, wz):
-        self._w_body_input=np.array([wx, wy, wz]).reshape(3,1)
-        if logger.isEnabledFor(logging.INFO):
-            logger.info(f'Object: {self.__name__}\nW_body setup:\n {self._w_body_input}')
-
-    def set_coordinates(self, lat, lon):
-        self._coord = np.array([np.deg2rad(lat), np.deg2rad(lon)]).reshape(2,1)
-        self.is_coordinates_set = True
-        if logger.isEnabledFor(logging.INFO):
-            logger.info(f'Object: {self.__name__}\nCoordinates setup:\n {self._coord}')
 
     def _puasson_equation(self):
-        wbx = self._w_body[0]
-        wby = self._w_body[1]
-        wbz = self._w_body[2]
+        wbx = self._w_body.x
+        wby = self._w_body.y
+        wbz = self._w_body.z
 
-        wox = self._w_enu[0]
-        woy = self._w_enu[1]
-        woz = self._w_enu[2]
+        wox = self._w_enu.E
+        woy = self._w_enu.N
+        woz = self._w_enu.Up
         C = self._tm_body_enu
 
         w_body = np.array([
@@ -89,66 +57,64 @@ class nav_alg:
             logger.debug(f'C_body_enu\n{self._tm_body_enu}')
 
     def _euler_angles(self):
+
         C = self._tm_body_enu
 
         C_0 = np.sqrt(pow(C[0,2],2) + pow(C[2,2],2))
 
-        # teta
-        self._rph_angles[0] = np.arctan(C[1,2]/C_0)
-        # gamma
-        self._rph_angles[1] = -np.arctan(C[0,2]/C[2,2])
-        # psi
-        self._rph_angles[2] = np.arctan(C[1,0]/C[1,1])
+        self._rph_angles.teta = np.arctan(C[1,2]/C_0)
+        self._rph_angles.gamma = -np.arctan(C[0,2]/C[2,2])
+        self._rph_angles.psi = np.arctan(C[1,0]/C[1,1])
+
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(f'Roll,Pitch,Heading\n {self._rph_angles}')
 
     def _acc_body_enu(self):
-        # transformation from horisontal vector to veritical vector
-        self._a_enu = (self._tm_body_enu@self._a_body)
+
+        c11 = self._tm_body_enu[0,0]; c12 = self._tm_body_enu[0,1]; c13 = self._tm_body_enu[0,2]
+        c21 = self._tm_body_enu[1,0]; c22 = self._tm_body_enu[1,1]; c23 = self._tm_body_enu[1,2]
+        c31 = self._tm_body_enu[2,0]; c32 = self._tm_body_enu[2,1]; c33 = self._tm_body_enu[2,2]
+
+        self._a_enu.E = c11 * self._a_body.x + c12 * self._a_body.y + c13 * self._a_body.z;
+        self._a_enu.N = c21 * self._a_body.x + c22 * self._a_body.y + c23 * self._a_body.z;
+        self._a_enu.U = c31 * self._a_body.x + c32 * self._a_body.y + c33 * self._a_body.z;
+
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(f'a_enu\n{self._a_enu}')
 
     def _coordinates(self):
-        lin_spd = self._v_enu
-        coords = self._coord
-
-        v_e = lin_spd[0]
-        v_n = lin_spd[1]
-
-        # phi
-        self._coord[0] = coords[0] + (v_n/(self.R+self._H))*self.dt
-        # lambda
-        self._coord[1] = coords[1] + (v_e/((self.R+self._H) * cos(coords[0]))) * self.dt
+        v_e = self._v_enu.E
+        v_n = self._v_enu.N
+        self._coord.phi = self._coord.phi + (v_n/(self.R+self._H))*self.dt
+        self._coord.lambd = self._coord.lambd + (v_e/((self.R+self._H) * cos(self._coord.phi))) * self.dt
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(f'phi,lambda\n{self._coord}')
 
     def _ang_velocity_body_enu(self):
-        spd = self._v_enu
-        coord = self._coord
 
-        self._w_enu[0] = -spd[1]/(self.R+self._H) # wox <=> we
-        self._w_enu[1] = spd[0]/(self.R+self._H) + self.U * cos(coord[0]) # woy <=> wn
-        self._w_enu[2] = spd[0]/(self.R+self._H)*tan(coord[0]) + self.U * sin(coord[0]) # woz <=> wup
+        v = self._v_enu; r = self.R; h = self._H; c = self._coord
+
+        self._w_enu.E = v.N/(r+h) # wox <=> we
+        self._w_enu.N = v.E/(r+h) + self.U * cos(c.phi) # woy <=> wn
+        self._w_enu.U = v.E/(r+h)*tan(c.phi) + self.U * sin(c.phi) # woz <=> wup
+
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(f'w_enu\n{self._w_enu}')
     
     def _speed(self):
-        w = self._w_enu
-        a = self._a_enu
-        coord = self._coord
-        v = self._v_enu
-        # v_e
-        self._v_enu[0] =  v[0] + (a[0] + (self.U*sin(coord[0])+w[2])*v[1] - v[2]*(self.U*cos(coord[0])+w[1]))*self.dt
-        # v_n
-        self._v_enu[1] =  v[1] + (a[1] - (self.U*sin(coord[0])+w[2])*v[0] - v[2] * w[0])*self.dt
+        w = self._w_enu; a = self._a_enu; c = self._coord; v = self._v_enu; U = self.U
+
+        self._v_enu.E =  v.E + (a.E + (U*sin(c.phi)+w.Up)*v.N - v.Up*(U*cos(c.phi)+w.E))*self.dt
+        self._v_enu.N =  v.N + (a.N - (U*sin(c.phi)+w.Up)*v.E - v.Up*w.E)*self.dt
         # v_up. Unstable channel cant be calculated, so assuming 0
-        self._v_enu[2] = 0
+        self._v_enu.Up = 0
         #self._v_enu[2] = v[2] + (a[2] + (self.U*cos(coord[1])+w[1])*v[0] - v[1]*w[0] - 9.81)*self.dt
+
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(f'v_enu\n{self._v_enu}')
 
-    def calc_output(self):
-        # calculate values on each itaration
+    def iter_once(self):
+        # calculate values. One iteration
         self._acc_body_enu()
         self._speed()
         self._ang_velocity_body_enu()
@@ -156,56 +122,24 @@ class nav_alg:
         self._euler_angles()
         self._coordinates()
 
-    def calc_and_save(self):
-        self.calc_output()
+    def rph_from_acc(self, ax_b:ndarray, ay_b:ndarray, az_b:ndarray):
+        ax_mean = np.mean(ax_b); ay_mean = np.mean(ay_b); az_mean = np.mean(az_b)
 
-        # store current values
-        v_tmp = self._v_enu.copy()
-        c_tmp = self._coord.copy()
-        ang_tmp = self._rph_angles.copy()
-        self.spd_e.append(v_tmp[0])
-        self.spd_n.append(v_tmp[1])
-        self.lat.append(c_tmp[0])
-        self.lon.append(c_tmp[1])
-        self.pitch.append(ang_tmp[0])
-        self.roll.append(ang_tmp[1])
-        self.yaw.append(ang_tmp[2])
+        st = ay_mean/self.G; sg = -1*ax_mean/math.sqrt(ax_mean**2 + az_mean**2)
+        ct = math.sqrt(ax_mean**2 + az_mean**2)/self.G;
+        cg = az_mean/math.sqrt(ax_mean**2 + az_mean**2)
 
-        a_tmp = self._a_enu.copy()
-        w_tmp = self._w_enu.copy()
-        self.a_e.append(a_tmp[0])
-        self.a_n.append(a_tmp[1])
-        self.a_u.append(a_tmp[2])
-        self.w_e.append(w_tmp[0])
-        self.w_n.append(w_tmp[1])
-        self.w_u.append(w_tmp[2])
+        teta = np.arctan2(st, ct)
+        gamma = np.arctan2(sg, cg)
+        return teta,gamma
 
-    def prepare_data(self):
-        self.spd_e.pop(0)
-        self.spd_n.pop(0)
-        self.lat.pop(0)
-        self.lon.pop(0)
-        self.pitch.pop(0)
-        self.roll.pop(0)
-        self.yaw.pop(0)
-
-
-    def alignment_matrix(self, ax_b:ndarray, ay_b:ndarray, az_b:ndarray, heading):
-        slice = self.alignment_time/self.dt
-        slice = int(slice)
-        self.starting_point = slice
-        ax_mean_60_sec = np.mean(ax_b[0:slice])
-        ay_mean_60_sec = np.mean(ay_b[0:slice])
-        az_mean_60_sec = np.mean(az_b[0:slice])
-        psi = heading
-
-        sp = np.sin(psi)
-        st = ay_mean_60_sec/self.G
-        sg = -1*ax_mean_60_sec/math.sqrt(ax_mean_60_sec**2 + az_mean_60_sec**2)
-
-        cp = np.cos(psi)
-        ct = math.sqrt(ax_mean_60_sec**2 + az_mean_60_sec**2)/self.G
-        cg = az_mean_60_sec/math.sqrt(ax_mean_60_sec**2 + az_mean_60_sec**2)
+    def alignment(self, roll, pitch, heading):
+        # psi
+        sp = np.sin(heading); cp = np.cos(heading)
+        # teta
+        st = np.sin(pitch); ct = np.cos(pitch)
+        # gamma
+        sg = np. sin(roll); cg = np.cos(roll)
 
         a11 = cp*cg + sp*st*sg
         a12 = sp*ct
@@ -217,16 +151,15 @@ class nav_alg:
         a32 = st
         a33 = ct*cg
 
-        # body_enu matrix
         C_body_enu = np.array([
             [a11, a12, a13],
             [a21, a22, a23],
             [a31, a32, a33]
         ])
 
-        # enu to body matrix
-        return C_body_enu.transpose(),C_body_enu
+        self._tm_body_enu = C_body_enu
     
+    '''
     def hw_pre(self, heading, roll, pitch):
         psi = math.radians(heading)
         teta= math.radians(pitch);
@@ -307,3 +240,4 @@ class nav_alg:
             logger.debug(f'a_body: {self.a_after_alignment_body}\n')
             logger.debug(f'w_body: {self.w_after_alignment_body}\n')
             logger.debug(f'C_body_enu: {self._tm_body_enu}')
+    '''

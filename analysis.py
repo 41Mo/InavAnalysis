@@ -3,11 +3,11 @@ import numpy as np
 import math as math
 from importlib import reload  # Python 3.4+
 
-import src.nav_alg
-src.nav_alg = reload(src.nav_alg)
-from src.nav_alg import nav_alg
-from src.csv_parser import get_data_from_csv
-from src.white_noize_gen import gen_white_noize
+import src.pycore.nav_alg_analysis
+src.pycore.nav_alg_analysis = reload(src.pycore.nav_alg_analysis)
+from src.pycore.nav_alg_analysis import nav_alg_analysis as naa
+from src.pycore.csv_parser import get_data_from_csv
+from src.pycore.white_noize_gen import gen_white_noize
 
 import logging
 logging.basicConfig(
@@ -50,9 +50,9 @@ gyr_drift = math.radians(10)/3600 # [deg/hour] e.g. 10 [deg/hour]
 """
 
 # %%
-ideal_system = nav_alg(obj_name="Идеальная система")
+ideal_system = naa(obj_name="Идеальная система")
 
-acc_offset_analysis = nav_alg(obj_name="смещение 0 акселерометров")
+acc_offset_analysis = naa(obj_name="смещение 0 акселерометров")
 acc_offset_analysis.set_a_body(
     acc_offset,
     acc_offset,
@@ -60,7 +60,7 @@ acc_offset_analysis.set_a_body(
 )
 acc_offset_analysis.set_coordinates(lat, lon)
 
-gyro_drift_analysis= nav_alg(obj_name="дрейф гироскопов")
+gyro_drift_analysis= naa(obj_name="дрейф гироскопов")
 gyro_drift_analysis.set_w_body(
     gyr_drift,
     gyr_drift,
@@ -72,7 +72,7 @@ gyro_drift_analysis.set_coordinates(lat, lon)
 SENSOR_DATA = get_data_from_csv("Gyr_X","Gyr_Y","Gyr_Z","Acc_X","Acc_Y","Acc_Z", file_name=data_file)
 
 #%%
-gyro_random_error_analysis = nav_alg(analysis="dynamic_gyro", time=sample_time, frequency=data_frequency, obj_name="случайная ошибка гироскопов")
+gyro_random_error_analysis = naa(analysis="dynamic_gyro", time=sample_time, frequency=data_frequency, obj_name="случайная ошибка гироскопов")
 gyro_random_error_analysis.set_coordinates(lat, lon)
 
 SENSOR_DATA_GYR = SENSOR_DATA
@@ -87,7 +87,7 @@ else:
 
 gyro_random_error_analysis.sensor_data = SENSOR_DATA_GYR
 # %%
-acc_random_error_analysis = nav_alg(analysis="dynamic_acc", time=sample_time, frequency=data_frequency, obj_name="случайная ошибка акселерометров, выставка не проводится")
+acc_random_error_analysis = naa(analysis="dynamic_acc", time=sample_time, frequency=data_frequency, obj_name="случайная ошибка акселерометров, выставка не проводится")
 acc_random_error_analysis.set_coordinates(lat, lon)
 
 SENSOR_DATA_ACC = SENSOR_DATA
@@ -105,7 +105,7 @@ acc_random_error_analysis.sensor_data = SENSOR_DATA_ACC
 # %%
 acc_random_error_analysis_w_a = None
 if use_alignment:
-    acc_random_error_analysis_w_a = nav_alg(analysis="dynamic_acc", time=sample_time, frequency=data_frequency, obj_name="случайная ошибка акселерометров, выставка по ЗК")
+    acc_random_error_analysis_w_a = naa(analysis="dynamic_acc", time=sample_time, frequency=data_frequency, obj_name="случайная ошибка акселерометров, выставка по ЗК")
     acc_random_error_analysis_w_a.set_coordinates(lat, lon)
 
     SENSOR_DATA_ACC_W_A = SENSOR_DATA
