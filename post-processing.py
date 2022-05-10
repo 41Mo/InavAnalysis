@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 df = pd.read_csv('csv_data/Sensors_and_orientation.csv', delimiter=';')
+#%%
 acc = df.loc[:, ["Acc_X", "Acc_Y", "Acc_Z"]].to_numpy()
 gyr = df.loc[:, ["Gyr_X", "Gyr_Y", "Gyr_Z"]].to_numpy()
 

@@ -72,8 +72,8 @@ def data_gen(rnd:bool,
             axs1[5,0].set_xlabel("время, c");
             fig1.savefig("./images/"+"Сигналы датчиков"+".jpg", bbox_inches='tight')
 
-        print("X: ", mean(A_X), "\n", "Y:", mean(A_Y), "\n", "Z:", mean(A_Z), "\n",
-            "X:", mean(rad2deg(G_X)), "\n", "Y:", mean(rad2deg(G_Y)), "\n", "Z:", mean(rad2deg(G_Z)), "\n")
+            print("X: ", mean(A_X), "\n", "Y:", mean(A_Y), "\n", "Z:", mean(A_Z), "\n",
+                "X:", mean(rad2deg(G_X)), "\n", "Y:", mean(rad2deg(G_Y)), "\n", "Z:", mean(rad2deg(G_Z)), "\n")
     else:
         #%% Сигнал датчиков без учета случайной составляющей
         G_X = w[0]+gyr_drift[0];
