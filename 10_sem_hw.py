@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 """
 # e.g Moscow 55.7522200 37.6155600
 lat = math.radians(56) # phi
-lon = math.radians(0) # lambda
+lon = math.radians(37) # lambda
 ini_pos = [lat, lon]
 # file with real sensors data
 sample_time = 90*60 # seconds
@@ -26,7 +26,7 @@ save_plots = False # plots would be saved to images folder
 plots_size = (297,210) # plots height,width in mm
 
 ## alignment
-heading = math.radians(270)
+heading = math.radians(180)
 roll = math.radians(-2)
 pitch = math.radians(2)
 ini_pry = [pitch, roll, heading]
@@ -159,7 +159,7 @@ def alg_loop(use_form_filter=True, corr=True, gnss_t=1):
 
 
 #%%
-ALG_DATA_CORR = alg_loop(gnss_t=gnss_TIME, use_form_filter=False, corr=True)
+ALG_DATA_CORR = alg_loop(gnss_t=gnss_TIME, use_form_filter=True, corr=True)
 ALG_DATA_NOCORR = alg_loop(gnss_t=gnss_TIME, use_form_filter=False, corr=False)
 
 acc_offset = np.array([
@@ -211,7 +211,7 @@ df = pd.DataFrame({
 # uncomment for interactive plots
 %matplotlib
 df.plot(
-    x="Time", y=["Fx_corr", "Fx_nocorr"],
+    x="Time", y=["lamda_corr"],
     grid=True,
     figsize=size,
     #subplots=True,
@@ -220,7 +220,31 @@ df.plot(
     #ylim=(-50, +50)
 )
 
-print("Stab Fx", rad2min(-acc_offset_y/9.8 - na.nav().get_k(1)/(na.nav().get_k(0)+ na.nav().get_k(2))*gyr_drift_x))
+#%%
+print("Stab Vy: ", -na.nav().get_k(0)/(na.nav().get_k(0)+na.nav().get_k(2))*gyr_drift_x*6378245.0)
+print("Stab Fx: ", rad2min(-acc_offset_y/9.8 - na.nav().get_k(1)/(na.nav().get_k(0)+ na.nav().get_k(2))*gyr_drift_x))
+print("Stab Phi: ", rad2meters(-gyr_drift_x/(na.nav().get_k(0)+ na.nav().get_k(2))))
+
+print("Model Vy:",
+    np.mean(
+    df.loc[:,["Vn_corr"]].
+    to_numpy()[gnss_ON*data_frequency+4*gnss_TIME*data_frequency:]
+    )
+)
+
+print("Model Fx:",
+    np.mean(
+    df.loc[:,["Fx_corr"]].
+    to_numpy()[gnss_ON*data_frequency+4*gnss_TIME*data_frequency:]
+    )
+)
+
+print("Model Phi:",
+    np.mean(
+    df.loc[:,["phi_corr"]].
+    to_numpy()[gnss_ON*data_frequency+4*gnss_TIME*data_frequency:]
+    )
+)
 #%%
 GNSS_T = [i for i in range(45,225, 45)]
 for T in GNSS_T:
