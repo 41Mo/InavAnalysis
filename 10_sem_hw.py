@@ -2,7 +2,7 @@
 import numpy as np
 import math as math
 
-from numpy import mean
+from numpy import deg2rad, mean
 
 from modules.libnav.interface.interface import NavIface, Tarr2f, Tarr3f
 from src.plots import plot_err_formula, plots
@@ -15,40 +15,42 @@ import matplotlib.pyplot as plt
 """
     Config section
 """
-# e.g Moscow
+# e.g Moscow 55.7522200 37.6155600
 lat = math.radians(0) # phi
-lon = math.radians(0) # lambda
-
+lon = math.radians(37) # lambda
+ini_pos = [lat, lon]
 # file with real sensors data
-sample_time = 5400 # seconds
+sample_time = 90*60 # seconds
 data_frequency = 10 # Hz
 save_plots = False # plots would be saved to images folder
 plots_size = (297,210) # plots height,width in mm
 
 ## alignment
-heading = math.radians(0)
-roll = math.radians(0)
-pitch = math.radians(0)
+heading = math.radians(180)
+roll = math.radians(-2)
+pitch = math.radians(2)
+ini_pry = [pitch, roll, heading]
 # time for alignment in seconds
 #alignment_time = 60
 ## alignment
 
 # sensor errors
-acc_offset_x = 0.0005 * 9.8  # [m/s/s] e.g 1 [mg]
+acc_offset_x = 0.001 * 9.8  # [m/s/s] e.g 1 [mg]
 acc_offset_y = 0.001 * 9.8 # [m/s/s] e.g 1 [mg]
-gyr_drift_x = math.radians(1)/3600 # 2 [deg/hour]
-gyr_drift_y = math.radians(0.5)/3600 # 2 [deg/hour]
+gyr_drift_x = math.radians(2)/3600 # 2 [deg/hour]
+gyr_drift_y = math.radians(2)/3600 # 2 [deg/hour]
 # normal distribution param
-sigma_a = 0.0005 * 9.8 # mg
+sigma_a = 0.5 * 1e-3 * 9.8 # mg
 sigma_g = math.radians(0.05) # 0.05 [deg/sec] 
-gnss_std = math.radians(0.03/60/60)
+gnss_std = math.radians(3/111111)
+gnss_offset = 0#math.radians(0.1/111111)
 Tg = 0.2
 Ta = 0.3
-gnss_TIME = 75
-gnss_OFF = 8*60
+gnss_TIME = 45
+gnss_OFF = 10*60
 gnss_ON = gnss_OFF+ 4*60
 
-size = (140/25.4, 170/25.4)
+size = (140/25.4, 170/25.4) # plot size 140, 170 mm
 """
     Config section end
 """
@@ -87,16 +89,13 @@ w_z = w_body[2][0];
 
 
 #%%
-sko_list = []
-inum =5 
-for j in range(inum):
+def alg_loop(use_form_filter=True, corr=True, gnss_t=1):
     gnss = [
-        rndnorm(lat, gnss_std, size=sample_time*data_frequency), 
-        rndnorm(lon, gnss_std, size=sample_time*data_frequency),
+        rndnorm(lat+gnss_offset, gnss_std, size=sample_time*data_frequency), 
+        rndnorm(lon+gnss_offset, gnss_std, size=sample_time*data_frequency),
     ]
     # 0,1,2 A_x,y,z
     # 3,4,5 G_x,y,z
-    use_form_filter = True
     D = data_gen(use_form_filter,
         [acc_offset_x, acc_offset_y],
         [gyr_drift_x, gyr_drift_y],
@@ -108,6 +107,7 @@ for j in range(inum):
         False
         )
     na.nav().alignment_acc(mean(D[0]), mean(D[1]), mean(D[2]), heading)
+    #na.nav().alignment_rph(roll, pitch, heading)
     pry = (
         [0]*(data_frequency*sample_time),
         [0]*(data_frequency*sample_time),
@@ -121,8 +121,8 @@ for j in range(inum):
         [0]*(data_frequency*sample_time),
         [0]*(data_frequency*sample_time),
     )
-    na.nav().gnss_T(gnss_TIME)
-    na.nav().corr_mode(True)
+    na.nav().gnss_T(gnss_t)
+    na.nav().corr_mode(corr)
     for i in range(0, data_frequency*sample_time):
         if isinstance(D[0], list):
             acc = [(D[0])[i], (D[1])[i], (D[2])[i]]
@@ -134,63 +134,34 @@ for j in range(inum):
         else:
             acc = [(D[0]), (D[1]), (D[2])]
             gyr = [(D[3]), (D[4]), (D[5])] 
-            g_p = [0,0]
+            g_p = [lat+gnss_offset,lon+gnss_offset]
             na.nav().iter_gnss(
                 acc, gyr, g_p
                 )
-        if (i == gnss_OFF*data_frequency):
-            na.nav().corr_mode(False)
-        if (i == gnss_ON*data_frequency):
-            na.nav().corr_mode(True)
+
+        #if (i == gnss_OFF*data_frequency and corr):
+        #    na.nav().corr_mode(False)
+        #if (i == gnss_ON*data_frequency and corr):
+        #    na.nav().corr_mode(True)
 
         v = Tarr3f()
         na.nav().pry(v)
         for j in range(0,3):
-            pry[j][i] = rad2min(v[j])
+            pry[j][i] = rad2min(v[j] - ini_pry[j])
         na.nav().vel(v)
         for j in range(0,2):
             vel[j][i] = v[j]
         v = Tarr2f()
         na.nav().pos(v)
         for j in range(0,2):
-            pos[j][i] = rad2meters(v[j])
-    sko_list.append([
-    np.std(pry[0][gnss_ON*data_frequency+3*gnss_TIME*data_frequency:]), 
-    np.std(pry[1][gnss_ON*data_frequency+3*gnss_TIME*data_frequency:]),
-    ])
-#%%
-mean_sko_Fx = 0
-mean_sko_Fy = 0
-for i in range(inum):
-    mean_sko_Fx+= sko_list[i][0]
-    mean_sko_Fy+= sko_list[i][1]
+            pos[j][i] = rad2meters(v[j] - ini_pos[j])
+    return (pry, vel, pos)
 
-print(
-    "SKO Fx", mean_sko_Fx/inum,
-    "SKO Fy", mean_sko_Fy/inum
-    )
-#%%
-df = pd.DataFrame({
-    "Time": np.linspace(0, sample_time/60, sample_time*data_frequency),
-    "Fx": pry[0],
-    "Fy": pry[1],
-    "Fz": pry[2],
-    "Ve": vel[0],
-    "Vn": vel[1],
-    "phi": pos[0],
-    "lamda": pos[1]
-})
 
-df.plot(
-    x="Time", y=["Fz"],
-    grid=True,
-    figsize=size,
-    #subplots=True,
-    #layout=(2,1),
-    xlim=(10,70),
-    ylim=(-30, +30)
-)
 #%%
+ALG_DATA_CORR = alg_loop(gnss_t=gnss_TIME, use_form_filter=False, corr=True)
+ALG_DATA_NOCORR = alg_loop(gnss_t=gnss_TIME, use_form_filter=False, corr=False)
+
 acc_offset = np.array([
     [acc_offset_x],
     [acc_offset_y],
@@ -219,6 +190,53 @@ EQUAT = plot_err_formula(
 ) 
 
 #%%
+df = pd.DataFrame({
+    "Time": np.linspace(0, sample_time/60, sample_time*data_frequency),
+    "Fx_corr": ALG_DATA_CORR[0][0],
+    "Fy_corr": ALG_DATA_CORR[0][1],
+    "Fz_corr": ALG_DATA_CORR[0][2],
+    "Ve_corr": ALG_DATA_CORR[1][0],
+    "Vn_corr": ALG_DATA_CORR[1][1],
+    "phi_corr": ALG_DATA_CORR[2][0],
+    "lamda_corr": ALG_DATA_CORR[2][1],
+    "Fx_nocorr": ALG_DATA_NOCORR[0][0],
+    "Fy_nocorr": ALG_DATA_NOCORR[0][1],
+    "Ve_nocorr": ALG_DATA_NOCORR[1][0],
+    "Vn_nocorr": ALG_DATA_NOCORR[1][1],
+    "phi_nocorr": ALG_DATA_NOCORR[2][0],
+    "lamda_nocorr": ALG_DATA_NOCORR[2][1]
+})
+
+#%%
+# uncomment for interactive plots
+#%matplotlib
+df.plot(
+    x="Time", y=["Fx_corr", "Fx_nocorr"],
+    grid=True,
+    figsize=size,
+    #subplots=True,
+    #layout=(2,1),
+    #xlim=(10,70),
+    #ylim=(-50, +50)
+)
+#%%
+GNSS_T = [i for i in range(40,52, 2)]
+for T in GNSS_T:
+    inum =5 
+    mean_sko_Fx = 0
+    mean_sko_Fy = 0
+    for j in range(inum):
+        angles = alg_loop(gnss_t=T)[0]
+        mean_sko_Fx += np.std(angles[0][gnss_ON*data_frequency+4*gnss_TIME*data_frequency:])
+        mean_sko_Fy += np.std(angles[1][gnss_ON*data_frequency+4*gnss_TIME*data_frequency:])
+    print(
+        "T = ", T, '\n'
+        "SKO Fx", mean_sko_Fx/inum, '\n'
+        "SKO Fy", mean_sko_Fy/inum, '\n'
+        "SKO Fxy", math.sqrt(math.pow(mean_sko_Fx/inum, 2)+math.pow(mean_sko_Fy/inum, 2)), '\n'
+        )
+#%%
+"""
 print("Maximum difference between equational and alg pitch,roll")
 for i in range(0,2):
     print(
@@ -250,9 +268,20 @@ for i in range(0,2):
     )
 print("misc")
 
+"""
 #%% вычисление ошибок выставки
 ae = NavIface(lat,lon, data_frequency)
 
+D = data_gen(False,
+    [acc_offset_x, acc_offset_y],
+    [gyr_drift_x, gyr_drift_y],
+    [a_x, a_y, a_z],
+    [w_x, w_y, w_z],
+    sample_time, data_frequency,
+    Ta, Tg,
+    sigma_a, sigma_g,
+    False
+    )
 na.nav().alignment_acc(mean(D[0]), mean(D[1]), mean(D[2]), heading)
 res = na.nav().align_prh()
 print(math.degrees(res[0]), math.degrees(res[1]), math.degrees(res[2]))

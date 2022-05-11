@@ -7,7 +7,7 @@ def rad2min(d):
     return deg(d)*60
 
 def rad2meters(d):
-    return deg(d)*60
+    return deg(d)*111111
 
 def plot_model(self, DATA, title="", save=False, err=False):
     plots(DATA, self.time, self.points, title=title, save=save, err=err)

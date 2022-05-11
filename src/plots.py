@@ -26,30 +26,30 @@ def plot_err_formula(daox, daoy, dwox, dwoy, G, R, time, points, psi, s_teta):
     Dphi = rad2deg(array(Dphi))*60
     Dlamda = rad2deg(array(Dlamda))*60
 
-    fig,axs = plt.subplots(2,1,sharex=True,constrained_layout=True)
-    fig.set_size_inches(size)
-    axs[0].plot(x_axis, gamma)
-    axs[0].set_ylabel('$\\Delta$$\gamma$, угл мин')
-    axs[1].plot(x_axis,  teta)
-    axs[1].set_ylabel('$\\Delta$$\\vartheta$, угл мин')
+    #fig,axs = plt.subplots(2,1,sharex=True,constrained_layout=True)
+    #fig.set_size_inches(size)
+    #axs[0].plot(x_axis, gamma)
+    #axs[0].set_ylabel('$\\Delta$$\gamma$, угл мин')
+    #axs[1].plot(x_axis,  teta)
+    #axs[1].set_ylabel('$\\Delta$$\\vartheta$, угл мин')
 
-    fig,axs = plt.subplots(2,1,sharex=True,constrained_layout=True)
-    fig.set_size_inches(size)
-    axs[0].plot(x_axis, Dvx)
-    axs[0].set_ylabel('$\\Delta$Vox, м/с')
-    axs[1].plot(x_axis, Dvy)
-    axs[1].set_ylabel('$\\Delta$Voy, м/с')
+    #fig,axs = plt.subplots(2,1,sharex=True,constrained_layout=True)
+    #fig.set_size_inches(size)
+    #axs[0].plot(x_axis, Dvx)
+    #axs[0].set_ylabel('$\\Delta$Vox, м/с')
+    #axs[1].plot(x_axis, Dvy)
+    #axs[1].set_ylabel('$\\Delta$Voy, м/с')
 
-    fig,axs = plt.subplots(2,1,sharex=True,constrained_layout=True)
-    fig.set_size_inches(size)
-    axs[0].plot(x_axis, Dphi)
-    axs[0].set_ylabel('$\\Delta$$\phi$, угл мин')
-    axs[1].plot(x_axis, Dlamda)
-    axs[1].set_ylabel('$\\Delta$$\lambda$, угл мин')
-    axs[1].set_xlabel("время, с")
+    #fig,axs = plt.subplots(2,1,sharex=True,constrained_layout=True)
+    #fig.set_size_inches(size)
+    #axs[0].plot(x_axis, Dphi)
+    #axs[0].set_ylabel('$\\Delta$$\phi$, угл мин')
+    #axs[1].plot(x_axis, Dlamda)
+    #axs[1].set_ylabel('$\\Delta$$\lambda$, угл мин')
+    #axs[1].set_xlabel("время, с")
 
 
-    fig.savefig("./images/"+"По формулам"+".jpg", bbox_inches='tight')
+    #fig.savefig("./images/"+"По формулам"+".jpg", bbox_inches='tight')
     return [teta, gamma], [Dvx, Dvy], [Dphi,Dlamda]
 
 def plots(pry, vel, pos, time, freq, size:Tuple=(140,170), save:bool=False, title:str="", err:bool=False):
