@@ -16,8 +16,8 @@ import matplotlib.pyplot as plt
     Config section
 """
 # e.g Moscow 55.7522200 37.6155600
-lat = math.radians(0) # phi
-lon = math.radians(37) # lambda
+lat = math.radians(56) # phi
+lon = math.radians(0) # lambda
 ini_pos = [lat, lon]
 # file with real sensors data
 sample_time = 90*60 # seconds
@@ -26,7 +26,7 @@ save_plots = False # plots would be saved to images folder
 plots_size = (297,210) # plots height,width in mm
 
 ## alignment
-heading = math.radians(180)
+heading = math.radians(270)
 roll = math.radians(-2)
 pitch = math.radians(2)
 ini_pry = [pitch, roll, heading]
@@ -46,7 +46,7 @@ gnss_std = math.radians(3/111111)
 gnss_offset = 0#math.radians(0.1/111111)
 Tg = 0.2
 Ta = 0.3
-gnss_TIME = 45
+gnss_TIME = 90
 gnss_OFF = 10*60
 gnss_ON = gnss_OFF+ 4*60
 
@@ -139,10 +139,10 @@ def alg_loop(use_form_filter=True, corr=True, gnss_t=1):
                 acc, gyr, g_p
                 )
 
-        #if (i == gnss_OFF*data_frequency and corr):
-        #    na.nav().corr_mode(False)
-        #if (i == gnss_ON*data_frequency and corr):
-        #    na.nav().corr_mode(True)
+        if (i == gnss_OFF*data_frequency and corr):
+            na.nav().corr_mode(False)
+        if (i == gnss_ON*data_frequency and corr):
+            na.nav().corr_mode(True)
 
         v = Tarr3f()
         na.nav().pry(v)
@@ -209,7 +209,7 @@ df = pd.DataFrame({
 
 #%%
 # uncomment for interactive plots
-#%matplotlib
+%matplotlib
 df.plot(
     x="Time", y=["Fx_corr", "Fx_nocorr"],
     grid=True,
@@ -219,8 +219,10 @@ df.plot(
     #xlim=(10,70),
     #ylim=(-50, +50)
 )
+
+print("Stab Fx", rad2min(-acc_offset_y/9.8 - na.nav().get_k(1)/(na.nav().get_k(0)+ na.nav().get_k(2))*gyr_drift_x))
 #%%
-GNSS_T = [i for i in range(40,52, 2)]
+GNSS_T = [i for i in range(45,225, 45)]
 for T in GNSS_T:
     inum =5 
     mean_sko_Fx = 0
