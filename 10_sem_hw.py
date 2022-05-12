@@ -153,14 +153,14 @@ def alg_loop(use_form_filter=True, corr=True, gnss_t=1):
         v = Tarr3f()
         na.nav().pry(v)
         for j in range(0,3):
-            pry[j][i] = rad2min(v[j] - ini_pry[j])
+            pry[j][i] = rad2min(v[j])# - ini_pry[j])
         na.nav().vel(v)
         for j in range(0,2):
             vel[j][i] = v[j]
         v = Tarr2f()
         na.nav().pos(v)
         for j in range(0,2):
-            pos[j][i] = rad2meters(v[j] - ini_pos[j])
+            pos[j][i] = rad2meters(v[j])# - ini_pos[j])
     return (pry, vel, pos, (mean(gnss[0])-ini_pos[0], mean(gnss[1])-ini_pos[1]), gnss)
 
 
@@ -198,9 +198,9 @@ EQUAT = plot_err_formula(
 #%%
 df = pd.DataFrame({
     "Time": np.linspace(0, sample_time/60, sample_time*data_frequency),
-    "Fx_corr": ALG_DATA_CORR[0][0],
-    "Fy_corr": ALG_DATA_CORR[0][1],
-    "Fz_corr": ALG_DATA_CORR[0][2],
+    "Theta_corr": ALG_DATA_CORR[0][0],
+    "Gamma_corr": ALG_DATA_CORR[0][1],
+    "Psi_corr": ALG_DATA_CORR[0][2],
     "Ve_corr": ALG_DATA_CORR[1][0],
     "Vn_corr": ALG_DATA_CORR[1][1],
     "phi_corr": ALG_DATA_CORR[2][0],
@@ -217,28 +217,59 @@ df = pd.DataFrame({
 #%%
 # uncomment for interactive plots
 #%matplotlib
+fig, ax = plt.subplots(1, 1)
+ax.axhline(y=rad2min(pitch), linestyle='-.', label=f"{np.rad2deg(pitch)}, Град.", lw=1)
+ax.axhline(y=rad2min(roll), linestyle='-.', color="r", label=f"{np.rad2deg(roll)}, Град.", lw=1)
 df.plot(
-    x="Time", y=["lamda_corr", "phi_corr", "lamda_nocorr", "phi_nocorr"],
+    ax=ax,
+    x="Time", y=["Theta_corr", "Gamma_corr"],
     grid=True,
     figsize=size,
-    colormap="Accent"
-    #subplots=True,
-    #layout=(2,1),
-    #xlim=(20,90),
-    #ylim=(-50, +50)
+    colormap="Accent",
+    title="Углы ориентации",
+    xlabel="Время, мин",
+    ylabel="Угловые минуты"
 )
+ax.legend()
 
 df.plot(
-    x="Time", y=["Fx_corr","Fx_nocorr"],
+    x="Time", y=["Ve_corr","Vn_corr"],
     grid=True,
     figsize=size,
-    colormap="Accent"
-    #subplots=True,
-    #layout=(2,1),
-    #xlim=(20,90),
-    #ylim=(-50, +50)
+    colormap="Accent",
+    title="Cкорости",
+    xlabel="Время, мин",
+    ylabel="М/с"
 )
 
+fig, ax = plt.subplots(1, 1)
+ax.axhline(y=rad2meters(lat), linestyle='-.', label=f"{np.rad2deg(lat)}, Град.", lw=1)
+df.plot(
+    ax=ax,
+    x="Time", y=["phi_corr"],
+    grid=True,
+    figsize=size,
+    colormap="Accent",
+    title="Координаты",
+    xlabel="Время, мин",
+    ylabel="М"
+)
+ax.legend()
+
+fig, ax = plt.subplots(1, 1)
+ax.axhline(y=rad2meters(lon), linestyle='-.', color="r", label=f"{np.rad2deg(lon)}, Град.", lw=1)
+df.plot(
+    ax=ax,
+    x="Time", y=["lamda_corr"],
+    grid=True,
+    figsize=size,
+    colormap="Accent",
+    title="Координаты",
+    xlabel="Время, мин",
+    ylabel="М"
+)
+
+ax.legend()
 #%%
 print("Stab Fx: ", rad2min(-acc_err_enu[1][0]/9.8 - na.nav().get_k(1)/(na.nav().get_k(0)+ na.nav().get_k(2))*gyr_drift_enu[0][0]))
 print("Stab Fy: ", rad2min(acc_err_enu[0][0]/9.8 - na.nav().get_k(1)/(na.nav().get_k(0)+ na.nav().get_k(2))*gyr_drift_enu[1][0]))
