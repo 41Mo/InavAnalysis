@@ -21,7 +21,7 @@ lon = math.radians(37) # lambda
 ini_pos = [lat, lon]
 # file with real sensors data
 sample_time = 90*60 # seconds
-data_frequency = 5 # Hz
+data_frequency = 10 # Hz
 save_plots = False # plots would be saved to images folder
 plots_size = (297,210) # plots height,width in mm
 
@@ -43,10 +43,10 @@ gyr_drift_y = math.radians(2)/3600 # 2 [deg/hour]
 sigma_a = 0.5 * 1e-3 * 9.8 # mg
 sigma_g = math.radians(0.05) # 0.05 [deg/sec] 
 gnss_std = math.radians(3/111111)
-gnss_offset = math.radians(10/111111)
+gnss_offset = 0#math.radians(10/111111)
 Tg = 0.2
 Ta = 0.3
-gnss_TIME = 180
+gnss_TIME = 90
 gnss_OFF = 10*60
 gnss_ON = gnss_OFF+ 4*60
 
@@ -91,7 +91,7 @@ w_z = w_body[2][0];
 #%%
 def alg_loop(use_form_filter=True, corr=True, gnss_t=1):
 
-    if False:
+    if True:
         gnss = [
             rndnorm(lat+gnss_offset, gnss_std, size=sample_time*data_frequency), 
             rndnorm(lon+gnss_offset, gnss_std, size=sample_time*data_frequency),
@@ -205,20 +205,31 @@ df = pd.DataFrame({
     "Vn_corr": ALG_DATA_CORR[1][1],
     "phi_corr": ALG_DATA_CORR[2][0],
     "lamda_corr": ALG_DATA_CORR[2][1],
+    "gnss_lambda": np.rad2deg(ALG_DATA_CORR[4][1])*111111,
     "Fx_nocorr": ALG_DATA_NOCORR[0][0],
     "Fy_nocorr": ALG_DATA_NOCORR[0][1],
     "Ve_nocorr": ALG_DATA_NOCORR[1][0],
     "Vn_nocorr": ALG_DATA_NOCORR[1][1],
     "phi_nocorr": ALG_DATA_NOCORR[2][0],
     "lamda_nocorr": ALG_DATA_NOCORR[2][1],
-    "gnss_lambda": np.rad2deg(ALG_DATA_CORR[4][1])*111111
 })
 
 #%%
 # uncomment for interactive plots
 #%matplotlib
 df.plot(
-    x="Time", y=["lamda_corr"],
+    x="Time", y=["lamda_corr", "phi_corr", "lamda_nocorr", "phi_nocorr"],
+    grid=True,
+    figsize=size,
+    colormap="Accent"
+    #subplots=True,
+    #layout=(2,1),
+    #xlim=(20,90),
+    #ylim=(-50, +50)
+)
+
+df.plot(
+    x="Time", y=["Fx_corr","Fx_nocorr"],
     grid=True,
     figsize=size,
     colormap="Accent"
@@ -280,13 +291,16 @@ print("Model Lambda:",
 )
 
 #%%
-GNSS_T = [i for i in range(45,360, 45)]
+step = 70
+start = 10
+stop = 360
+GNSS_T = [i for i in range(start,stop+step, step)]
 for T in GNSS_T:
-    inum =5 
+    inum =3
     mean_sko_Fx = 0
     mean_sko_Fy = 0
     for j in range(inum):
-        angles = alg_loop(gnss_t=T)[0]
+        angles = alg_loop(gnss_t=T, use_form_filter=True)[0]
         mean_sko_Fx += np.std(angles[0][gnss_ON*data_frequency+4*gnss_TIME*data_frequency:])
         mean_sko_Fy += np.std(angles[1][gnss_ON*data_frequency+4*gnss_TIME*data_frequency:])
     print(
