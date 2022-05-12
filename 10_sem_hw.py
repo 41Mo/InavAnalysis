@@ -231,6 +231,7 @@ df.plot(
     ylabel="Угловые минуты"
 )
 ax.legend()
+plt.savefig("images/angels.jpg")
 
 df.plot(
     x="Time", y=["Ve_corr","Vn_corr"],
@@ -241,6 +242,7 @@ df.plot(
     xlabel="Время, мин",
     ylabel="М/с"
 )
+plt.savefig("images/vel.jpg")
 
 fig, ax = plt.subplots(1, 1)
 ax.axhline(y=rad2meters(lat), linestyle='-.', label=f"{np.rad2deg(lat)}, Град.", lw=1)
@@ -255,6 +257,7 @@ df.plot(
     ylabel="М"
 )
 ax.legend()
+plt.savefig("images/lat.jpg")
 
 fig, ax = plt.subplots(1, 1)
 ax.axhline(y=rad2meters(lon), linestyle='-.', color="r", label=f"{np.rad2deg(lon)}, Град.", lw=1)
@@ -268,8 +271,8 @@ df.plot(
     xlabel="Время, мин",
     ylabel="М"
 )
-
 ax.legend()
+plt.savefig("images/lon.jpg")
 #%%
 print("Stab Fx: ", rad2min(-acc_err_enu[1][0]/9.8 - na.nav().get_k(1)/(na.nav().get_k(0)+ na.nav().get_k(2))*gyr_drift_enu[0][0]))
 print("Stab Fy: ", rad2min(acc_err_enu[0][0]/9.8 - na.nav().get_k(1)/(na.nav().get_k(0)+ na.nav().get_k(2))*gyr_drift_enu[1][0]))
@@ -282,13 +285,13 @@ print("Stab Lambda: ", rad2meters( gyr_drift_enu[1][0]/(na.nav().get_k(0)+ na.na
 
 print("Model Fx:",
     np.mean(
-    df.loc[:,["Fx_corr"]].
+    df.loc[:,["Theta_corr"]].
     to_numpy()[gnss_ON*data_frequency+4*gnss_TIME*data_frequency:]
     )
 )
 print("Model Fy:",
     np.mean(
-    df.loc[:,["Fy_corr"]].
+    df.loc[:,["Gamma_corr"]].
     to_numpy()[gnss_ON*data_frequency+4*gnss_TIME*data_frequency:]
     )
 )
