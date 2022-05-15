@@ -11,17 +11,18 @@ from src.analysis import c_enu_body, rad2meters, rad2min
 from numpy.random import normal as rndnorm
 import pandas as pd
 import matplotlib.pyplot as plt
+import math as m
 #%%
 """
     Config section
 """
 # e.g Moscow 55.7522200 37.6155600
 lat = math.radians(56) # phi
-lon = math.radians(37) # lambda
+lon = math.radians(0) # lambda
 ini_pos = [lat, lon]
 # file with real sensors data
 sample_time = 90*60 # seconds
-data_frequency = 10 # Hz
+data_frequency = 6 # Hz
 save_plots = False # plots would be saved to images folder
 plots_size = (297,210) # plots height,width in mm
 
@@ -46,7 +47,7 @@ gnss_std = math.radians(3/111111)
 gnss_offset = 0#math.radians(10/111111)
 Tg = 0.2
 Ta = 0.3
-gnss_TIME = 90
+gnss_TIME = 65
 gnss_OFF = 10*60
 gnss_ON = gnss_OFF+ 4*60
 
@@ -153,20 +154,20 @@ def alg_loop(use_form_filter=True, corr=True, gnss_t=1):
         v = Tarr3f()
         na.nav().pry(v)
         for j in range(0,3):
-            pry[j][i] = rad2min(v[j])# - ini_pry[j])
+            pry[j][i] = rad2min(v[j] - ini_pry[j])
         na.nav().vel(v)
         for j in range(0,2):
             vel[j][i] = v[j]
         v = Tarr2f()
         na.nav().pos(v)
         for j in range(0,2):
-            pos[j][i] = rad2meters(v[j])# - ini_pos[j])
+            pos[j][i] = rad2meters(v[j] - ini_pos[j])
     return (pry, vel, pos, (mean(gnss[0])-ini_pos[0], mean(gnss[1])-ini_pos[1]), gnss)
 
 
 #%%
-ALG_DATA_CORR = alg_loop(gnss_t=gnss_TIME, use_form_filter=False, corr=True)
-ALG_DATA_NOCORR = alg_loop(gnss_t=gnss_TIME, use_form_filter=False, corr=False)
+ALG_DATA_CORR = alg_loop(gnss_t=gnss_TIME, use_form_filter=True, corr=True)
+#ALG_DATA_NOCORR = alg_loop(gnss_t=gnss_TIME, use_form_filter=False, corr=False)
 
 acc_offset = np.array([
     [acc_offset_x],
@@ -206,32 +207,31 @@ df = pd.DataFrame({
     "phi_corr": ALG_DATA_CORR[2][0],
     "lamda_corr": ALG_DATA_CORR[2][1],
     "gnss_lambda": np.rad2deg(ALG_DATA_CORR[4][1])*111111,
-    "Fx_nocorr": ALG_DATA_NOCORR[0][0],
-    "Fy_nocorr": ALG_DATA_NOCORR[0][1],
-    "Ve_nocorr": ALG_DATA_NOCORR[1][0],
-    "Vn_nocorr": ALG_DATA_NOCORR[1][1],
-    "phi_nocorr": ALG_DATA_NOCORR[2][0],
-    "lamda_nocorr": ALG_DATA_NOCORR[2][1],
+#    "Fx_nocorr": ALG_DATA_NOCORR[0][0],
+#    "Fy_nocorr": ALG_DATA_NOCORR[0][1],
+#    "Ve_nocorr": ALG_DATA_NOCORR[1][0],
+#    "Vn_nocorr": ALG_DATA_NOCORR[1][1],
+#    "phi_nocorr": ALG_DATA_NOCORR[2][0],
+#    "lamda_nocorr": ALG_DATA_NOCORR[2][1],
 })
 
 #%%
 # uncomment for interactive plots
-#%matplotlib
-fig, ax = plt.subplots(1, 1)
-ax.axhline(y=rad2min(pitch), linestyle='-.', label=f"{np.rad2deg(pitch)}, Град.", lw=1)
-ax.axhline(y=rad2min(roll), linestyle='-.', color="r", label=f"{np.rad2deg(roll)}, Град.", lw=1)
+#%matplotlib widget
+size = (165/25.4, 80/25.4) # plot size 140, 170 mm
 df.plot(
-    ax=ax,
     x="Time", y=["Theta_corr", "Gamma_corr"],
     grid=True,
     figsize=size,
     colormap="Accent",
     title="Углы ориентации",
     xlabel="Время, мин",
-    ylabel="Угловые минуты"
+    ylabel="Угловые минуты",
+    sharey=True,
+    subplots=True,
+    layout=(1,2)
 )
-ax.legend()
-plt.savefig("images/angels.jpg")
+plt.savefig("images/1.jpg")
 
 df.plot(
     x="Time", y=["Ve_corr","Vn_corr"],
@@ -240,109 +240,98 @@ df.plot(
     colormap="Accent",
     title="Cкорости",
     xlabel="Время, мин",
-    ylabel="М/с"
+    ylabel="М/с",
+    sharey=True,
+    subplots=True,
+    layout=(1,2)
 )
-plt.savefig("images/vel.jpg")
-
-fig, ax = plt.subplots(1, 1)
-ax.axhline(y=rad2meters(lat), linestyle='-.', label=f"{np.rad2deg(lat)}, Град.", lw=1)
+plt.savefig("images/2.jpg")
 df.plot(
-    ax=ax,
-    x="Time", y=["phi_corr"],
+    x="Time", y=["phi_corr", "lamda_corr"],
     grid=True,
     figsize=size,
     colormap="Accent",
     title="Координаты",
     xlabel="Время, мин",
-    ylabel="М"
+    ylabel="М",
+    sharey=True,
+    subplots=True,
+    layout=(1,2)
 )
-ax.legend()
-plt.savefig("images/lat.jpg")
-
-fig, ax = plt.subplots(1, 1)
-ax.axhline(y=rad2meters(lon), linestyle='-.', color="r", label=f"{np.rad2deg(lon)}, Град.", lw=1)
-df.plot(
-    ax=ax,
-    x="Time", y=["lamda_corr"],
-    grid=True,
-    figsize=size,
-    colormap="Accent",
-    title="Координаты",
-    xlabel="Время, мин",
-    ylabel="М"
-)
-ax.legend()
-plt.savefig("images/lon.jpg")
-#%%
-print("Stab Fx: ", rad2min(-acc_err_enu[1][0]/9.8 - na.nav().get_k(1)/(na.nav().get_k(0)+ na.nav().get_k(2))*gyr_drift_enu[0][0]))
-print("Stab Fy: ", rad2min(acc_err_enu[0][0]/9.8 - na.nav().get_k(1)/(na.nav().get_k(0)+ na.nav().get_k(2))*gyr_drift_enu[1][0]))
-
-print("Stab Vx: ", na.nav().get_k(0)/(na.nav().get_k(0)+na.nav().get_k(2))*gyr_drift_enu[1][0]*6378245.0)
-print("Stab Vy: ",-na.nav().get_k(0)/(na.nav().get_k(0)+na.nav().get_k(2))*gyr_drift_enu[0][0]*6378245.0)
-
-print("Stab Phi: ",    rad2meters(-gyr_drift_enu[0][0]/(na.nav().get_k(0)+ na.nav().get_k(2)) ))
-print("Stab Lambda: ", rad2meters( gyr_drift_enu[1][0]/(na.nav().get_k(0)+ na.nav().get_k(2)) ))
-
-print("Model Fx:",
-    np.mean(
-    df.loc[:,["Theta_corr"]].
-    to_numpy()[gnss_ON*data_frequency+4*gnss_TIME*data_frequency:]
-    )
-)
-print("Model Fy:",
-    np.mean(
-    df.loc[:,["Gamma_corr"]].
-    to_numpy()[gnss_ON*data_frequency+4*gnss_TIME*data_frequency:]
-    )
-)
-
-print("Model Vx:",
-    np.mean(
-    df.loc[:,["Ve_corr"]].
-    to_numpy()[gnss_ON*data_frequency+4*gnss_TIME*data_frequency:]
-    )
-)
-print("Model Vy:",
-    np.mean(
-    df.loc[:,["Vn_corr"]].
-    to_numpy()[gnss_ON*data_frequency+4*gnss_TIME*data_frequency:]
-    )
-)
-
-
-print("Model Phi:",
-    np.mean(
-    df.loc[:,["phi_corr"]].
-    to_numpy()[gnss_ON*data_frequency+4*gnss_TIME*data_frequency:]
-    )
-)
-
-print("Model Lambda:",
-    np.mean(
-    df.loc[:,["lamda_corr"]].
-    to_numpy()[gnss_ON*data_frequency+4*gnss_TIME*data_frequency:]
-    )
-)
+plt.savefig("images/3.jpg")
 
 #%%
-step = 70
-start = 10
-stop = 360
+s = ''
+Phiox = -acc_err_enu[1][0]/9.8 - na.nav().get_k(1)/(na.nav().get_k(0)+ na.nav().get_k(2))*gyr_drift_enu[0][0]
+Phioy = acc_err_enu[0][0]/9.8 - na.nav().get_k(1)/(na.nav().get_k(0)+ na.nav().get_k(2))*gyr_drift_enu[1][0]
+teta = (-(Phiox*m.cos(heading) - Phioy*m.sin(heading)))
+gama = (-(Phioy*m.cos(heading) + Phiox * m.sin(heading))*1/m.cos(pitch))
+s+=" "*6
+s+="Формульное Смоделированное\n"
+s+="Theta"
+s+=" "*3
+s+="%.5f" % rad2min(teta)
+s+=" "*8
+s+="%.5f\n" % np.mean(df.loc[:,["Theta_corr"]].to_numpy()[gnss_ON*data_frequency+4*gnss_TIME*data_frequency:])
+
+s+= "Gamma"
+s+=" "*2
+s+="%.5f" % rad2min(gama)
+s+=" "*7
+s+="%.5f\n" % np.mean(df.loc[:,["Gamma_corr"]].to_numpy()[gnss_ON*data_frequency+4*gnss_TIME*data_frequency:])
+
+s+="Vx"
+s+=" "*5
+s+="%.5f" % (na.nav().get_k(0)/(na.nav().get_k(0)+na.nav().get_k(2))*gyr_drift_enu[1][0]*6378245.0)
+s+=" "*7
+s+="%.5f\n" % np.mean(df.loc[:,["Ve_corr"]].to_numpy()[gnss_ON*data_frequency+4*gnss_TIME*data_frequency:])
+
+s+="Vy"
+s+=" "*6
+s+="%.5f" % (-na.nav().get_k(0)/(na.nav().get_k(0)+na.nav().get_k(2))*gyr_drift_enu[0][0]*6378245.0)
+s+=" "*8
+s+="%.5f\n" % np.mean(df.loc[:,["Vn_corr"]].to_numpy()[gnss_ON*data_frequency+4*gnss_TIME*data_frequency:])
+
+s+="Phi"
+s+=" "*5
+s+="%.5f" % rad2meters(-gyr_drift_enu[0][0]/(na.nav().get_k(0)+ na.nav().get_k(2)))
+s+=" "*8
+s+="%.5f\n" % np.mean(df.loc[:,["phi_corr"]].to_numpy()[gnss_ON*data_frequency+4*gnss_TIME*data_frequency:])
+
+s+="Lambda"
+s+=" "*1
+s+="%.5f" % rad2meters( gyr_drift_enu[1][0]/(na.nav().get_k(0)+ na.nav().get_k(2)) )
+s+=" "*7
+s+="%.5f" % np.mean(df.loc[:,["lamda_corr"]].to_numpy()[gnss_ON*data_frequency+4*gnss_TIME*data_frequency:])
+
+print(s)
+
+#%%
+s = ''
+for i in range(3):
+    s+= f"K{i+1}=%.3f\n" % na.nav().get_k(i)
+print(s)
+#%%
+step = 10
+start = 50
+stop = 90
 GNSS_T = [i for i in range(start,stop+step, step)]
+s='      SKO Theta SKO Gamma\n'
 for T in GNSS_T:
-    inum =3
+    inum =5
     mean_sko_Fx = 0
     mean_sko_Fy = 0
     for j in range(inum):
         angles = alg_loop(gnss_t=T, use_form_filter=True)[0]
         mean_sko_Fx += np.std(angles[0][gnss_ON*data_frequency+4*gnss_TIME*data_frequency:])
         mean_sko_Fy += np.std(angles[1][gnss_ON*data_frequency+4*gnss_TIME*data_frequency:])
-    print(
-        "T = ", T, '\n'
-        "SKO Fx", mean_sko_Fx/inum,
-        "SKO Fy", mean_sko_Fy/inum, '\n'
-        "SKO Fxy", math.sqrt(math.pow(mean_sko_Fx/inum, 2)+math.pow(mean_sko_Fy/inum, 2)), '\n'
-        )
+    s+="T=%3.0f"%T
+    s+=' '*4
+    s+="%5.3f"%(mean_sko_Fx/inum)
+    s+=' '*5
+    s+="%5.3f"%(mean_sko_Fy/inum)
+    s+=" %5.3f\n"%math.sqrt(math.pow(mean_sko_Fx/inum, 2)+math.pow(mean_sko_Fy/inum, 2))
+print(s)
 #%%
 """
 print("Maximum difference between equational and alg pitch,roll")
