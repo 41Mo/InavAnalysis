@@ -229,9 +229,15 @@ df.plot(
     ylabel="Угловые минуты",
     sharey=True,
     subplots=True,
-    layout=(1,2)
+    layout=(1,2),
+    xlim=(gnss_ON/60+4*gnss_TIME/60,90),
+    ylim=(-30, 30)
 )
 plt.savefig("images/1.jpg")
+s = ''
+s+= "SKO Theta: %3.3f\n" % np.std(df.loc[:,["Theta_corr"]].to_numpy()[gnss_ON*data_frequency+4*gnss_TIME*data_frequency:])
+s+= "SKO Gamma: %3.3f\n" % np.std(df.loc[:,["Gamma_corr"]].to_numpy()[gnss_ON*data_frequency+4*gnss_TIME*data_frequency:])
+print(s)
 
 df.plot(
     x="Time", y=["Ve_corr","Vn_corr"],
@@ -243,7 +249,9 @@ df.plot(
     ylabel="М/с",
     sharey=True,
     subplots=True,
-    layout=(1,2)
+    layout=(1,2),
+    xlim=(gnss_ON/60+4*gnss_TIME/60,90),
+    ylim=(-1,1),
 )
 plt.savefig("images/2.jpg")
 df.plot(
@@ -256,7 +264,9 @@ df.plot(
     ylabel="М",
     sharey=True,
     subplots=True,
-    layout=(1,2)
+    layout=(1,2),
+    xlim=(gnss_ON/60+4*gnss_TIME/60,90),
+    ylim=(-7,7),
 )
 plt.savefig("images/3.jpg")
 
@@ -277,7 +287,7 @@ s+="%.5f\n" % np.mean(df.loc[:,["Theta_corr"]].to_numpy()[gnss_ON*data_frequency
 s+= "Gamma"
 s+=" "*2
 s+="%.5f" % rad2min(gama)
-s+=" "*7
+s+=" "*8
 s+="%.5f\n" % np.mean(df.loc[:,["Gamma_corr"]].to_numpy()[gnss_ON*data_frequency+4*gnss_TIME*data_frequency:])
 
 s+="Vx"
