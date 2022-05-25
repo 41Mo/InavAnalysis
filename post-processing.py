@@ -3,11 +3,14 @@ import math
 from modules.libnav.interface.interface import NavIface
 import pandas as pd
 import numpy as np
-%matplotlib
+from numpy.random import normal as rndnorm
+#%matplotlib widget
 import matplotlib.pyplot as plt
 
-df = pd.read_csv('csv_data/Sensors_and_orientation.csv', delimiter=';')
+df = pd.read_csv('csv_data/101003-0757Saratov.txt', delimiter='  ')
+
 #%%
+#df.plot( y=["Acc_X"], grid=True, linewidth=2)
 acc = df.loc[:, ["Acc_X", "Acc_Y", "Acc_Z"]].to_numpy()
 gyr = df.loc[:, ["Gyr_X", "Gyr_Y", "Gyr_Z"]].to_numpy()
 
@@ -15,8 +18,16 @@ gyr = df.loc[:, ["Gyr_X", "Gyr_Y", "Gyr_Z"]].to_numpy()
 lat = math.radians(55.7522200)
 lon = math.radians(37.6155600)
 freq = 100
-alignemnt_time = 30 * freq
-mag_yaw = math.radians(df["Yaw"][alignemnt_time])
+alignemnt_points = 30 * freq
+gnss_std = math.radians(3/111111)/math.sqrt(1/freq)
+gnss_T = 360
+gnss_OFF = 10*60
+gnss_ON = (gnss_OFF+ 5*60)
+gnss_OFF *= freq
+gnss_ON *= freq
+test_mid_off = False
+
+mag_yaw = math.radians(df["Yaw"][alignemnt_points])
 if mag_yaw < 0:
     mag_heading = mag_yaw + 2*math.pi
 else:
@@ -24,8 +35,12 @@ else:
 points = len(acc)
 
 time_min = len(acc[:,0])/freq/60
-align,data = np.split(acc, [alignemnt_time])
+align,acc = np.split(acc, [alignemnt_points])
+gyr = np.split(gyr, [alignemnt_points])[1]
 
+
+gnss = rndnorm((lat, lon), gnss_std, size=(len(acc[:,0]), 2)),
+gnss = np.squeeze(gnss)
 #%%
 ni = NavIface(lat, lon, freq)
 ni.nav().alignment_acc(
@@ -34,16 +49,25 @@ ni.nav().alignment_acc(
     np.mean(align[:,2]),
     mag_heading
 )
+
+ni.nav().gnss_T(gnss_T)
+ni.nav().corr_mode(True)
 #%%
 pry = []; vel = []; pos = []
-for a, g in zip(acc, gyr):
-    ni.nav().iter(
-        a[0], a[1], a[2],
-        g[0], g[1], g[2]
+i=0
+for a, g, sns in zip(acc, gyr, gnss):
+    if i == gnss_OFF and test_mid_off:
+        ni.nav().corr_mode(False)
+    elif i == gnss_ON and test_mid_off:
+        ni.nav().corr_mode(True)
+
+    ni.nav().iter_gnss(
+        a, g, sns
     )
     pry.append(ni.nav().get_pry())
     vel.append(ni.nav().get_vel())
     pos.append(ni.nav().get_pos())
+    i+=1
 #%%
 def pry2prh(pry):
     if pry[2] < 0:
@@ -58,7 +82,7 @@ pos = np.rad2deg(pos)
 
 df2 = pd.DataFrame(
     {
-        "Time": np.linspace(0, time_min, points),
+        "Time": np.linspace(alignemnt_points/freq/60, time_min, points-alignemnt_points),
         "Pitch": pry[:,0],
         "Roll": pry[:,1],
         "Hdg": pry[:,2],
@@ -80,6 +104,7 @@ df2.plot(
     figsize=size,
     subplots=True,
     layout=(3,1),
+    linewidth=2
 )
 # %%
 df2.plot(

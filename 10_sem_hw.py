@@ -22,7 +22,7 @@ lon = math.radians(0) # lambda
 ini_pos = [lat, lon]
 # file with real sensors data
 sample_time = 90*60 # seconds
-data_frequency = 6 # Hz
+data_frequency = 10 # Hz
 save_plots = False # plots would be saved to images folder
 plots_size = (297,210) # plots height,width in mm
 
@@ -43,11 +43,11 @@ gyr_drift_y = math.radians(2)/3600 # 2 [deg/hour]
 # normal distribution param
 sigma_a = 0.5 * 1e-3 * 9.8 # mg
 sigma_g = math.radians(0.05) # 0.05 [deg/sec] 
-gnss_std = math.radians(3/111111)
+gnss_std = math.radians(3/111111)/m.sqrt(1/data_frequency)
 gnss_offset = 0#math.radians(10/111111)
 Tg = 0.2
 Ta = 0.3
-gnss_TIME = 65
+gnss_TIME = 360
 gnss_OFF = 10*60
 gnss_ON = gnss_OFF+ 4*60
 
@@ -93,10 +93,8 @@ w_z = w_body[2][0];
 def alg_loop(use_form_filter=True, corr=True, gnss_t=1):
 
     if True:
-        gnss = [
-            rndnorm(lat+gnss_offset, gnss_std, size=sample_time*data_frequency), 
-            rndnorm(lon+gnss_offset, gnss_std, size=sample_time*data_frequency),
-        ]
+        gnss = rndnorm((lat, lon), gnss_std, size=(sample_time*data_frequency, 2)),
+        gnss = np.squeeze(gnss)
     else:
         gnss = [[lat]*(sample_time*data_frequency), [lon]*(sample_time*data_frequency)]
 
@@ -112,6 +110,7 @@ def alg_loop(use_form_filter=True, corr=True, gnss_t=1):
         sigma_a, sigma_g,
         False
         )
+    na = NavIface(lat,lon,data_frequency)
     na.nav().alignment_acc(mean(D[0]), mean(D[1]), mean(D[2]), heading)
     #na.nav().alignment_rph(roll, pitch, heading)
     pry = (
@@ -133,17 +132,15 @@ def alg_loop(use_form_filter=True, corr=True, gnss_t=1):
         if isinstance(D[0], list):
             acc = [(D[0])[i], (D[1])[i], (D[2])[i]]
             gyr = [(D[3])[i], (D[4])[i], (D[5])[i]] 
-            g_p = [gnss[0][i], gnss[1][i]]
             na.nav().iter_gnss(
-                acc, gyr, g_p
+                acc, gyr, gnss[i]
                 )
         else:
             acc = [(D[0]), (D[1]), (D[2])]
             gyr = [(D[3]), (D[4]), (D[5])] 
             #g_p = [lat,lon]
-            g_p = [gnss[0][i], gnss[1][i]]
             na.nav().iter_gnss(
-                acc, gyr, g_p
+                acc, gyr, gnss[i]
                 )
 
         if (i == gnss_OFF*data_frequency and corr):
@@ -162,11 +159,11 @@ def alg_loop(use_form_filter=True, corr=True, gnss_t=1):
         na.nav().pos(v)
         for j in range(0,2):
             pos[j][i] = rad2meters(v[j] - ini_pos[j])
-    return (pry, vel, pos, (mean(gnss[0])-ini_pos[0], mean(gnss[1])-ini_pos[1]), gnss)
+    return (pry, vel, pos)
 
 
 #%%
-ALG_DATA_CORR = alg_loop(gnss_t=gnss_TIME, use_form_filter=True, corr=True)
+ALG_DATA_CORR = alg_loop(gnss_t=gnss_TIME, use_form_filter=True, corr=False)
 #ALG_DATA_NOCORR = alg_loop(gnss_t=gnss_TIME, use_form_filter=False, corr=False)
 
 acc_offset = np.array([
@@ -206,7 +203,7 @@ df = pd.DataFrame({
     "Vn_corr": ALG_DATA_CORR[1][1],
     "phi_corr": ALG_DATA_CORR[2][0],
     "lamda_corr": ALG_DATA_CORR[2][1],
-    "gnss_lambda": np.rad2deg(ALG_DATA_CORR[4][1])*111111,
+#    "gnss_lambda": np.rad2deg(ALG_DATA_CORR[4][1])*111111,
 #    "Fx_nocorr": ALG_DATA_NOCORR[0][0],
 #    "Fy_nocorr": ALG_DATA_NOCORR[0][1],
 #    "Ve_nocorr": ALG_DATA_NOCORR[1][0],
@@ -230,8 +227,8 @@ df.plot(
     sharey=True,
     subplots=True,
     layout=(1,2),
-    xlim=(gnss_ON/60+4*gnss_TIME/60,90),
-    ylim=(-30, 30)
+    #xlim=(gnss_ON/60+4*gnss_TIME/60,90),
+    #ylim=(-70, 70)
 )
 plt.savefig("images/1.jpg")
 s = ''
@@ -250,8 +247,8 @@ df.plot(
     sharey=True,
     subplots=True,
     layout=(1,2),
-    xlim=(gnss_ON/60+4*gnss_TIME/60,90),
-    ylim=(-1,1),
+    #xlim=(gnss_ON/60+4*gnss_TIME/60,90),
+    #ylim=(-3,3),
 )
 plt.savefig("images/2.jpg")
 df.plot(
@@ -265,8 +262,8 @@ df.plot(
     sharey=True,
     subplots=True,
     layout=(1,2),
-    xlim=(gnss_ON/60+4*gnss_TIME/60,90),
-    ylim=(-7,7),
+    #xlim=(gnss_ON/60+4*gnss_TIME/60,90),
+    #ylim=(-9,9),
 )
 plt.savefig("images/3.jpg")
 
@@ -322,9 +319,9 @@ for i in range(3):
     s+= f"K{i+1}=%.3f\n" % na.nav().get_k(i)
 print(s)
 #%%
-step = 10
-start = 50
-stop = 90
+step = 45
+start = 270
+stop = 765
 GNSS_T = [i for i in range(start,stop+step, step)]
 s='      SKO Theta SKO Gamma\n'
 for T in GNSS_T:
