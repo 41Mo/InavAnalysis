@@ -7,27 +7,54 @@ from numpy.random import normal as rndnorm
 #%matplotlib widget
 import matplotlib.pyplot as plt
 
-df = pd.read_csv('csv_data/101003-0757Saratov.txt', delimiter='  ')
+df = pd.read_csv('csv_data/101003-0757Saratov.txt', delimiter=',')
+df.plot(
+ x="Timestamp",
+ y=["Latitude", "Longitude"]
+)
+#
+#df.plot(
+# x="Timestamp",
+# y=["Speed"]
+#)
+#
+#df.plot(
+# x="Timestamp",
+# y=["Pitch", "Roll"]
+#)
+#df.plot(
+#    x="Timestamp",
+#    y=["Ve", "Vn"],
+#    subplots=True,
+#    layout=(2,1),
+#)
 
 #%%
-#df.plot( y=["Acc_X"], grid=True, linewidth=2)
-acc = df.loc[:, ["Acc_X", "Acc_Y", "Acc_Z"]].to_numpy()
-gyr = df.loc[:, ["Gyr_X", "Gyr_Y", "Gyr_Z"]].to_numpy()
+start_from = 5*100*60
+end = 120*100*60
+acc = df.loc[:, ["fx", "fy", "fz"]].to_numpy()[start_from:]
+gyr = df.loc[:, ["wx", "wy", "wz"]].to_numpy()[start_from:]
+gnss = df.loc[:, ["GPS Latitude","GPS Longitude"]].to_numpy()[start_from:]
+gyr = np.rad2deg(gyr)
 
 #%%
-lat = math.radians(55.7522200)
-lon = math.radians(37.6155600)
+#plt.plot(acc)
+
+#%%
+lat = math.radians(gnss[0][0])
+lon = math.radians(gnss[0][1])
+gnss = np.deg2rad(gnss)
 freq = 100
 alignemnt_points = 30 * freq
 gnss_std = math.radians(3/111111)/math.sqrt(1/freq)
-gnss_T = 360
+gnss_T = 180
 gnss_OFF = 10*60
 gnss_ON = (gnss_OFF+ 5*60)
 gnss_OFF *= freq
 gnss_ON *= freq
 test_mid_off = False
 
-mag_yaw = math.radians(df["Yaw"][alignemnt_points])
+mag_yaw = math.radians(df["GPS Heading"][alignemnt_points])
 if mag_yaw < 0:
     mag_heading = mag_yaw + 2*math.pi
 else:
@@ -37,10 +64,11 @@ points = len(acc)
 time_min = len(acc[:,0])/freq/60
 align,acc = np.split(acc, [alignemnt_points])
 gyr = np.split(gyr, [alignemnt_points])[1]
+gnss = np.split(gnss, [alignemnt_points])[1]
 
 
-gnss = rndnorm((lat, lon), gnss_std, size=(len(acc[:,0]), 2)),
-gnss = np.squeeze(gnss)
+#gnss = rndnorm((lat, lon), gnss_std, size=(len(acc[:,0]), 2)),
+#gnss = np.squeeze(gnss)
 #%%
 ni = NavIface(lat, lon, freq)
 ni.nav().alignment_acc(
@@ -82,7 +110,7 @@ pos = np.rad2deg(pos)
 
 df2 = pd.DataFrame(
     {
-        "Time": np.linspace(alignemnt_points/freq/60, time_min, points-alignemnt_points),
+        "Time": np.linspace(start_from/100/60, start_from/100/60+time_min, points-alignemnt_points),
         "Pitch": pry[:,0],
         "Roll": pry[:,1],
         "Hdg": pry[:,2],
@@ -127,4 +155,8 @@ df2.plot(
     #xlim=(0,10),
     #ylim=(-2000, +2000)
 )
+
+# %%
+
+plt.plot(df2["Time"], np.rad2deg(gnss[:,0]))
 # %%
