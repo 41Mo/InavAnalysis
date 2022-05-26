@@ -8,34 +8,13 @@ from numpy.random import normal as rndnorm
 import matplotlib.pyplot as plt
 
 df = pd.read_csv('csv_data/101003-0757Saratov.txt', delimiter=',')
-df.plot(
- x="Timestamp",
- y=["Latitude", "Longitude"]
-)
-#
-#df.plot(
-# x="Timestamp",
-# y=["Speed"]
-#)
-#
-#df.plot(
-# x="Timestamp",
-# y=["Pitch", "Roll"]
-#)
-#df.plot(
-#    x="Timestamp",
-#    y=["Ve", "Vn"],
-#    subplots=True,
-#    layout=(2,1),
-#)
-
 #%%
 start_from = 5*100*60
 end = 120*100*60
-acc = df.loc[:, ["fx", "fy", "fz"]].to_numpy()[start_from:]
-gyr = df.loc[:, ["wx", "wy", "wz"]].to_numpy()[start_from:]
-gnss = df.loc[:, ["GPS Latitude","GPS Longitude"]].to_numpy()[start_from:]
-gyr = np.rad2deg(gyr)
+acc = df.loc[:, ["fx", "fy", "fz"]].to_numpy()[start_from:end]
+gyr = df.loc[:, ["wx", "wy", "wz"]].to_numpy()[start_from:end]
+gnss = df.loc[:, ["GPS Latitude","GPS Longitude"]].to_numpy()[start_from:end]
+gyr = np.deg2rad(gyr)
 
 #%%
 #plt.plot(acc)
@@ -47,7 +26,7 @@ gnss = np.deg2rad(gnss)
 freq = 100
 alignemnt_points = 30 * freq
 gnss_std = math.radians(3/111111)/math.sqrt(1/freq)
-gnss_T = 180
+gnss_T = 130
 gnss_OFF = 10*60
 gnss_ON = (gnss_OFF+ 5*60)
 gnss_OFF *= freq
@@ -108,16 +87,25 @@ pry = np.rad2deg(pry)
 vel = np.array(vel)
 pos = np.rad2deg(pos)
 
+from src.filter import filter
+
 df2 = pd.DataFrame(
     {
         "Time": np.linspace(start_from/100/60, start_from/100/60+time_min, points-alignemnt_points),
         "Pitch": pry[:,0],
-        "Roll": pry[:,1],
-        "Hdg": pry[:,2],
+        "Roll":  pry[:,1],
+        "Hdg":   pry[:,2],
         "V_e": vel[:,0],
         "V_n": vel[:,1],
         "Lat": pos[:,0],
-        "Lon": pos[:,1]
+        "Lon": pos[:,1],
+        "IdPitch": (df["Pitch"])[start_from+alignemnt_points:end],
+        "IdRoll":  (df["Roll"])[start_from+alignemnt_points:end],
+        "IdHdg":   (df["Heading"])[start_from+alignemnt_points:end],
+        "IdVe":    ((df["Ve"])[start_from+alignemnt_points:end]),
+        "IdVn":    ((df["Vn"])[start_from+alignemnt_points:end]),
+        "LonId":   (df["Longitude"])[start_from+alignemnt_points:end],
+        "LatId":   (df["Latitude"])[start_from+alignemnt_points:end],
     }
 )
 
@@ -126,37 +114,26 @@ size = (140/25.4, 170/25.4)
 # To get a list of all of the styles available from Mathplotlib use the following command.
 # plt.style.available
 plt.style.use('fivethirtyeight')
-df2.plot(
-    x="Time", y=["Pitch", "Roll", "Hdg"],
-    grid=True,
-    figsize=size,
-    subplots=True,
-    layout=(3,1),
-    linewidth=2
-)
 # %%
-df2.plot(
-    x="Time", y=["V_e", "V_n"],
-    grid=True,
-    figsize=size,
-    subplots=True,
-    layout=(2,1),
-    #xlim=(0,10),
-    #ylim=(-2000, +2000)
-)
+plotting_data = [
+    (["Pitch", "IdPitch"], "m/s"),
+    (["Roll", "IdRoll"], "m/s"),
+    (["Hdg" , "IdHdg" ], "m/s"),
+    (["V_e", "IdVe"], "m/s"),
+    (["V_n", "IdVn"], "m/s"),
+    (["Lon", "LonId"], "m/s"),
+    (["Lat", "LatId"], "m/s"),
+]
 
-# %%
-df2.plot(
-    x="Time", y=["Lat", "Lon"],
-    grid=True,
-    figsize=size,
-    subplots=True,
-    layout=(2,1),
-    #xlim=(0,10),
-    #ylim=(-2000, +2000)
-)
-
-# %%
-
-plt.plot(df2["Time"], np.rad2deg(gnss[:,0]))
-# %%
+for y_d in plotting_data:
+    df2.plot(
+        x="Time", y=y_d[0],
+        grid=True,
+        figsize=size,
+        ylabel=y_d[1]
+        #subplots=True,
+        #layout=(2,1),
+        #xlim=(0,10),
+        #ylim=(-2000, +2000)
+    )
+#%%
