@@ -1,10 +1,11 @@
 #%%
+import matplotlib
 import numpy as np
 import math as math
 
 from numpy import deg2rad, mean
 
-from modules.libnav.interface.interface import NavIface, Tarr2f, Tarr3f
+from modules.libnav.interface.interface import Nav, NavIface, Tarr2f, Tarr3f
 from src.plots import plot_err_formula, plots
 from src.sens_data_gen import data_gen
 from src.analysis import c_enu_body, rad2meters, rad2min
@@ -22,7 +23,7 @@ lon = math.radians(0) # lambda
 ini_pos = [lat, lon]
 # file with real sensors data
 sample_time = 90*60 # seconds
-data_frequency = 10 # Hz
+data_frequency = 100 # Hz
 save_plots = False # plots would be saved to images folder
 plots_size = (297,210) # plots height,width in mm
 
@@ -43,11 +44,11 @@ gyr_drift_y = math.radians(2)/3600 # 2 [deg/hour]
 # normal distribution param
 sigma_a = 0.5 * 1e-3 * 9.8 # mg
 sigma_g = math.radians(0.05) # 0.05 [deg/sec] 
-gnss_std = math.radians(3/111111)/m.sqrt(1/data_frequency)
+gnss_std = m.radians((3/m.sqrt(1/data_frequency))/111111)
 gnss_offset = 0#math.radians(10/111111)
 Tg = 0.2
 Ta = 0.3
-gnss_TIME = 360
+gnss_TIME = 30
 gnss_OFF = 10*60
 gnss_ON = gnss_OFF+ 4*60
 
@@ -90,26 +91,8 @@ w_z = w_body[2][0];
 
 
 #%%
-def alg_loop(use_form_filter=True, corr=True, gnss_t=1):
+def alg_loop(gnss_t:int, corr:bool=True, mid_off:bool=True):
 
-    if True:
-        gnss = rndnorm((lat, lon), gnss_std, size=(sample_time*data_frequency, 2)),
-        gnss = np.squeeze(gnss)
-    else:
-        gnss = [[lat]*(sample_time*data_frequency), [lon]*(sample_time*data_frequency)]
-
-    # 0,1,2 A_x,y,z
-    # 3,4,5 G_x,y,z
-    D = data_gen(use_form_filter,
-        [acc_offset_x, acc_offset_y],
-        [gyr_drift_x, gyr_drift_y],
-        [a_x, a_y, a_z],
-        [w_x, w_y, w_z],
-        sample_time, data_frequency,
-        Ta, Tg,
-        sigma_a, sigma_g,
-        False
-        )
     na = NavIface(lat,lon,data_frequency)
     na.nav().alignment_acc(mean(D[0]), mean(D[1]), mean(D[2]), heading)
     #na.nav().alignment_rph(roll, pitch, heading)
@@ -143,9 +126,9 @@ def alg_loop(use_form_filter=True, corr=True, gnss_t=1):
                 acc, gyr, gnss[i]
                 )
 
-        if (i == gnss_OFF*data_frequency and corr):
+        if (i == gnss_OFF*data_frequency and corr and mid_off):
             na.nav().corr_mode(False)
-        if (i == gnss_ON*data_frequency and corr):
+        if (i == gnss_ON*data_frequency and corr and mid_off):
             na.nav().corr_mode(True)
 
         v = Tarr3f()
@@ -163,7 +146,28 @@ def alg_loop(use_form_filter=True, corr=True, gnss_t=1):
 
 
 #%%
-ALG_DATA_CORR = alg_loop(gnss_t=gnss_TIME, use_form_filter=True, corr=False)
+if True:
+    gnss = rndnorm((lat, lon), gnss_std, size=(sample_time*data_frequency, 2)),
+    gnss = np.squeeze(gnss)
+else:
+    gnss = []
+    for i in range(0, data_frequency*sample_time):
+        gnss.append([lat, lon])
+
+#%%
+# 0,1,2 A_x,y,z
+# 3,4,5 G_x,y,z
+D = data_gen(True,
+    [acc_offset_x, acc_offset_y],
+    [gyr_drift_x, gyr_drift_y],
+    [a_x, a_y, a_z],
+    [w_x, w_y, w_z],
+    sample_time, data_frequency,
+    Ta, Tg,
+    sigma_a, sigma_g,
+    False
+    )
+ALG_DATA_CORR = alg_loop(gnss_t=gnss_TIME, corr=True, mid_off=False)
 #ALG_DATA_NOCORR = alg_loop(gnss_t=gnss_TIME, use_form_filter=False, corr=False)
 
 acc_offset = np.array([
@@ -269,8 +273,11 @@ plt.savefig("images/3.jpg")
 
 #%%
 s = ''
-Phiox = -acc_err_enu[1][0]/9.8 - na.nav().get_k(1)/(na.nav().get_k(0)+ na.nav().get_k(2))*gyr_drift_enu[0][0]
-Phioy = acc_err_enu[0][0]/9.8 - na.nav().get_k(1)/(na.nav().get_k(0)+ na.nav().get_k(2))*gyr_drift_enu[1][0]
+t = NavIface(lat,lon,data_frequency)
+t.nav().corr_mode(True)
+t.nav().gnss_T(gnss_TIME)
+Phiox = -acc_err_enu[1][0]/9.8 - t.nav().get_k(1)/(t.nav().get_k(0)+ t.nav().get_k(2))*gyr_drift_enu[0][0]
+Phioy = acc_err_enu[0][0]/9.8 - t.nav().get_k(1)/(t.nav().get_k(0)+ t.nav().get_k(2))*gyr_drift_enu[1][0]
 teta = (-(Phiox*m.cos(heading) - Phioy*m.sin(heading)))
 gama = (-(Phioy*m.cos(heading) + Phiox * m.sin(heading))*1/m.cos(pitch))
 s+=" "*6
@@ -289,25 +296,25 @@ s+="%.5f\n" % np.mean(df.loc[:,["Gamma_corr"]].to_numpy()[gnss_ON*data_frequency
 
 s+="Vx"
 s+=" "*5
-s+="%.5f" % (na.nav().get_k(0)/(na.nav().get_k(0)+na.nav().get_k(2))*gyr_drift_enu[1][0]*6378245.0)
+s+="%.5f" % (t.nav().get_k(0)/(t.nav().get_k(0)+t.nav().get_k(2))*gyr_drift_enu[1][0]*6378245.0)
 s+=" "*7
 s+="%.5f\n" % np.mean(df.loc[:,["Ve_corr"]].to_numpy()[gnss_ON*data_frequency+4*gnss_TIME*data_frequency:])
 
 s+="Vy"
 s+=" "*6
-s+="%.5f" % (-na.nav().get_k(0)/(na.nav().get_k(0)+na.nav().get_k(2))*gyr_drift_enu[0][0]*6378245.0)
+s+="%.5f" % (-t.nav().get_k(0)/(t.nav().get_k(0)+t.nav().get_k(2))*gyr_drift_enu[0][0]*6378245.0)
 s+=" "*8
 s+="%.5f\n" % np.mean(df.loc[:,["Vn_corr"]].to_numpy()[gnss_ON*data_frequency+4*gnss_TIME*data_frequency:])
 
 s+="Phi"
 s+=" "*5
-s+="%.5f" % rad2meters(-gyr_drift_enu[0][0]/(na.nav().get_k(0)+ na.nav().get_k(2)))
+s+="%.5f" % rad2meters(-gyr_drift_enu[0][0]/(t.nav().get_k(0)+ t.nav().get_k(2)))
 s+=" "*8
 s+="%.5f\n" % np.mean(df.loc[:,["phi_corr"]].to_numpy()[gnss_ON*data_frequency+4*gnss_TIME*data_frequency:])
 
 s+="Lambda"
 s+=" "*1
-s+="%.5f" % rad2meters( gyr_drift_enu[1][0]/(na.nav().get_k(0)+ na.nav().get_k(2)) )
+s+="%.5f" % rad2meters( gyr_drift_enu[1][0]/(t.nav().get_k(0)+ t.nav().get_k(2)) )
 s+=" "*7
 s+="%.5f" % np.mean(df.loc[:,["lamda_corr"]].to_numpy()[gnss_ON*data_frequency+4*gnss_TIME*data_frequency:])
 
@@ -316,28 +323,24 @@ print(s)
 #%%
 s = ''
 for i in range(3):
-    s+= f"K{i+1}=%.3f\n" % na.nav().get_k(i)
+    s+= f"K{i+1}=%.3f\n" % t.nav().get_k(i)
 print(s)
 #%%
-step = 45
-start = 270
-stop = 765
+step = 10
+start = 10
+stop = 360
 GNSS_T = [i for i in range(start,stop+step, step)]
-s='      SKO Theta SKO Gamma\n'
+s='                SKO\n'
+s+='       | Theta   | Gamma   | \n'
 for T in GNSS_T:
-    inum =5
+    inum =1
     mean_sko_Fx = 0
     mean_sko_Fy = 0
     for j in range(inum):
-        angles = alg_loop(gnss_t=T, use_form_filter=True)[0]
+        angles = alg_loop(gnss_t=T)[0]
         mean_sko_Fx += np.std(angles[0][gnss_ON*data_frequency+4*gnss_TIME*data_frequency:])
         mean_sko_Fy += np.std(angles[1][gnss_ON*data_frequency+4*gnss_TIME*data_frequency:])
-    s+="T=%3.0f"%T
-    s+=' '*4
-    s+="%5.3f"%(mean_sko_Fx/inum)
-    s+=' '*5
-    s+="%5.3f"%(mean_sko_Fy/inum)
-    s+=" %5.3f\n"%math.sqrt(math.pow(mean_sko_Fx/inum, 2)+math.pow(mean_sko_Fy/inum, 2))
+    s+=f'T={T:4.0f} | {(mean_sko_Fx/inum):7.3f} | {(mean_sko_Fy/inum):7.3f} | {math.sqrt(math.pow(mean_sko_Fx/inum, 2)+math.pow(mean_sko_Fy/inum, 2)):7.3f}\n'
 print(s)
 #%%
 """
